@@ -14,10 +14,16 @@ static char THIS_FILE[]=__FILE__;
 
 #define CAN_MAX_ERRSTR 256
 #define MAX_BUFF_ALLOWED 16
+#define canOK 1
 
 CString tmp;
 long errSIECA;
 
+enum
+{
+	CREATE_MAP_TIMESTAMP = 0x1,
+	CALC_TIMESTAMP_READY = 0x2,
+};
 
 Liste ListeMessages;
 
@@ -43,7 +49,9 @@ unsigned char Data[16];
 
 HINSTANCE hSIECADLL,hCAPIDLL,hSWITCH;
 HINSTANCE hVXLAPIDLL;
+HANDLE g_hCan;
 HANDLE InputHandle=NULL;
+HANDLE g_hDataEvent[defNO_OF_CHANNELS] = { 0 };
 //HANDLE hThread=NULL;
 
 int ret_DesactiveCanBox;
@@ -54,10 +62,15 @@ int	iInst = 0;
 CStdioFile	fCanLog;
 static SYSTEMTIME       sg_CurrSysTime = { '\0' };
 static LARGE_INTEGER    sg_QueryTickCount;
+static LARGE_INTEGER	sg_lnFrequency;
 static UINT64           sg_TimeStampRef = 0x0;
 static UINT64			sg_TimeStamp = 0;
 static HWND				sg_hOwnerWnd = nullptr;
-std::string sg_acErrStr = "";
+std::string				sg_acErrStr = "";
+static CPARAM_THREADPROC sg_sParmRThread;
+static UINT				sg_nNoOfChannels = 0;
+static STCANDATA		sg_asCANMsg;
+int						sg_arrReadHandles[16U];
 
 //CAN_SetConfigData variables
 static UCHAR sg_ucNoOfHardware = 0;
@@ -102,6 +115,8 @@ static BOOL bGetClientObj(DWORD dwClientID, UINT& unClientIndex);
 static DWORD dwGetAvailableClientSlot();
 static BOOL bClientExist(std::string pcClientName, INT& Index);
 static BOOL bRemoveClient(DWORD dwClientId);
+static void ProcessCANMsg(int nChannelIndex, CMSG canmsg);
+DWORD WINAPI CanMsgReadThreadProc_CAN_AGCO(LPVOID pVoid);
 
 //////////Vector ////////////
 
@@ -278,15 +293,139 @@ HRESULT CCanBox2::CAN_SetConfigData(PSCONTROLLER_DETAILS InitData, int Length)
 	return S_OK;
 }
 
+static void vWriteIntoClientsBuffer(STCANDATA& sCanData, UINT unClientIndex)
+{
+	/* Write into the respective client's buffer */
+	for (UINT j = 0; j < sg_asClientToBufMap[unClientIndex].unBufCount; j++)
+	{
+		sg_asClientToBufMap[unClientIndex].pClientBuf[j]->WriteIntoBuffer(&sCanData);
+	}
+}
+
+static void ProcessCANMsg(int nChannelIndex, CMSG canmsg)
+{
+	sg_asCANMsg.m_ucDataType = RX_FLAG;
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucDataLen = canmsg.by_len;
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_unMsgID = canmsg.l_id;
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucEXTENDED = canmsg.by_extended;
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucRTR = canmsg.by_remote;
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucChannel = canmsg.by_msg_lost;
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[0] = canmsg.aby_data[0];
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[1] = canmsg.aby_data[1];
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[2] = canmsg.aby_data[2];
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[3] = canmsg.aby_data[3];
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[4] = canmsg.aby_data[4];
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[5] = canmsg.aby_data[5];
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[6] = canmsg.aby_data[6];
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[7] = canmsg.aby_data[7];
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[8] = '\0';
+
+	vWriteIntoClientsBuffer(sg_asCANMsg, nChannelIndex);
+}
+
+long  CCanBox2::get_dll_canRead(CMSG *canmsg, long *len)
+{
+	return this->dll_canRead(g_hCan, canmsg, len);
+}
+
+DWORD WINAPI CanMsgReadThreadProc_CAN_AGCO(LPVOID pVoid)
+{
+	USES_CONVERSION;
+	CCanBox2		fct;
+	short			nStatus = canOK;
+	bool			bLoopON = true;
+	int				moreDataExist;
+	long			len;
+	CMSG			t_canmsg;
+	CCanBox2		obj;
+	CPARAM_THREADPROC* pThread = (CPARAM_THREADPROC*)pVoid;
+
+	/* Validate certain required pointers */
+	VALIDATE_POINTER_RETURN_VAL(pThread, (DWORD)-1);
+	/* Assign thread action to CREATE_TIME_MAP */
+	pThread->m_unActionCode = CREATE_TIME_MAP;
+
+	while (bLoopON)
+	{
+		WaitForMultipleObjects(sg_nNoOfChannels, g_hDataEvent, FALSE, INFINITE);
+		switch (pThread->m_unActionCode)
+		{
+			case INVOKE_FUNCTION:
+			{
+				do
+				{
+					moreDataExist = 0;
+					for (UINT i = 0; i < sg_nNoOfChannels; i++)
+					{
+						//Read CAN Message from channel
+						nStatus = fct.get_dll_canRead(&t_canmsg, &len);
+						switch (nStatus)
+						{
+							case canOK:
+								ProcessCANMsg(i, t_canmsg);
+								moreDataExist = 1;
+								break;
+							default:
+								break;
+						}
+					}
+				} while (moreDataExist);
+			}
+			break;
+			case EXIT_THREAD:
+			{
+				bLoopON = false;
+			}
+			break;		
+			case CREATE_TIME_MAP:
+			{
+				SetEvent(pThread->m_hActionEvent);
+				pThread->m_unActionCode = INVOKE_FUNCTION;
+			}
+			break;
+			default:
+			case INACTION:
+			{
+				// nothing right at this moment
+			}
+		break;
+		}
+	}
+
+	SetEvent(pThread->hGetExitNotifyEvent());
+	for (UINT i = 0; i < sg_nNoOfChannels + 1; i++)
+	{
+		ResetEvent(g_hDataEvent[i]);
+		g_hDataEvent[i] = nullptr;
+	}
+	pThread->m_hActionEvent = nullptr;
+
+	return 0;
+}
+
 HRESULT CCanBox2::CAN_StartHardware(void)
 {
-	//todo
+	g_hCan = hCan;
+	//if there's no trace i may need to connect to the hw
+	if (sg_sParmRThread.bStartThread(CanMsgReadThreadProc_CAN_AGCO))
+	{
+		sg_bCurrState = STATE_CONNECTED;
+		SetEvent(g_hDataEvent[0]);
+		return S_OK;
+	}
+	else
+		return S_FALSE;
 	return S_OK;
 }
 
 HRESULT CCanBox2::CAN_StopHardware(void)
-{
-	//todo
+{ // ??? 
+	VALIDATE_VALUE_RETURN_VAL(sg_bCurrState, STATE_CONNECTED, ERR_IMPROPER_STATE);
+
+	HRESULT hResult = S_OK;
+
+	//Terminate the read thread
+	sg_sParmRThread.bTerminateThread();
 	return S_OK;
 }
 
@@ -508,6 +647,7 @@ HRESULT CCanBox2::CAN_UnloadDriverLibrary(void)
 
 HRESULT CCanBox2::CAN_SetHardwareChannel(PSCONTROLLER_DETAILS, DWORD dwDriverId, bool bIsHardwareListed, unsigned int unChannelCount)
 {
+	//todo!!!
 	return S_OK;
 }
 
@@ -902,7 +1042,7 @@ HardCanBox:
 			msg.Format("Erreur dll_canSetBaudrate (%d)",errSIECA);
 			AfxMessageBox(msg);
 			return NOT_OK;
-		}
+		} 
 
 		errSIECA = dll_canSetFilterMode(hCan,filterMode_nofilter);
 		if (errSIECA != NTCAN_SUCCESS)

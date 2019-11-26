@@ -18,6 +18,8 @@
 #include "C:\Users\kmartin\Desktop\busmaster\Sources\Kernel\BusmasterDriverInterface\Include\DeviceListInfo.h"
 #include "C:\Users\kmartin\Desktop\busmaster\Sources\Kernel\BusmasterDriverInterface\Include\Error.h"
 #include "C:\Users\kmartin\Desktop\busmaster\Sources\Kernel\BusmasterDriverInterface\Include\BaseDIL_CAN_Controller.h"
+#include "C:\Users\kmartin\Desktop\busmaster\Sources\BUSMASTER\Utility\Utility_Thread.h"
+#include "C:\Users\kmartin\Desktop\busmaster\Sources\BUSMASTER\Utility\Utility_Thread.cpp"
 
 #include "windows.h"
 
@@ -96,7 +98,6 @@ extern "C" {  // only need to export C interface if used by C++ source code
 
 DWORD WINAPI ThreadDepilement(LPVOID lpParam);
 
-
 typedef struct
 {
 	CGestionMessages Can[2];
@@ -134,6 +135,7 @@ class DllExport CCanBox2 : public CBaseDIL_CAN_Controller
 		HRESULT			CAN_UnloadDriverLibrary(void);
 		HRESULT			CAN_SetHardwareChannel(PSCONTROLLER_DETAILS, DWORD dwDriverId, bool bIsHardwareListed, unsigned int unChannelCount);
 
+
 		//  IOCANBOX FUNCTION
 		int				ClearBuffer(void);
 		int				Initialisation();
@@ -150,6 +152,7 @@ class DllExport CCanBox2 : public CBaseDIL_CAN_Controller
 		int				AppliqueFiltre(int etat);
 		void			TraiteCanBox(int NumeroChannel);
 		void			SendMessage(CString msg);
+		long			get_dll_canRead(CMSG *t_canmsg, long *len);
 
 		CCanBox2();
 		virtual			~CCanBox2();
