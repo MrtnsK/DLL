@@ -105,7 +105,7 @@ typedef struct
 
 #define DllExport	__declspec( dllexport )
 
-class DllExport CCanBox2 : public CBaseDIL_CAN_Controller
+class CCanBox2 : public CBaseDIL_CAN_Controller
 {
 
 	public:
@@ -134,7 +134,9 @@ class DllExport CCanBox2 : public CBaseDIL_CAN_Controller
 		HRESULT			CAN_LoadDriverLibrary(void);
 		HRESULT			CAN_UnloadDriverLibrary(void);
 		HRESULT			CAN_SetHardwareChannel(PSCONTROLLER_DETAILS, DWORD dwDriverId, bool bIsHardwareListed, unsigned int unChannelCount);
-
+		HRESULT			GetHWinfo(HANDLE handle, unsigned long *pulSNHigh, unsigned long *pulSNLow, int *res);
+		HRESULT			myCanOpen(char *name, HANDLE *handle);
+		HRESULT			myCanClose(HANDLE handle);
 
 		//  IOCANBOX FUNCTION
 		int				ClearBuffer(void);
@@ -153,6 +155,7 @@ class DllExport CCanBox2 : public CBaseDIL_CAN_Controller
 		void			TraiteCanBox(int NumeroChannel);
 		void			SendMessage(CString msg);
 		long			get_dll_canRead(CMSG *t_canmsg, long *len);
+		T_DeviceList	*GetHardwareList(void);
 
 		CCanBox2();
 		virtual			~CCanBox2();
@@ -168,6 +171,7 @@ class DllExport CCanBox2 : public CBaseDIL_CAN_Controller
 		//Variables pour SIECA
 		bool			FlagFinThread;
 		bool			bStopThread;
+		int				hardware;
 
 
 	private:

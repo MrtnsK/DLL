@@ -15,6 +15,8 @@ static char THIS_FILE[]=__FILE__;
 #define CAN_MAX_ERRSTR 256
 #define MAX_BUFF_ALLOWED 16
 #define canOK 1
+#define MAX_CLIENT_ALLOWED 16
+#define	NUMBER_OF_CHANNEL 2
 
 CString tmp;
 long errSIECA;
@@ -70,7 +72,8 @@ std::string				sg_acErrStr = "";
 static CPARAM_THREADPROC sg_sParmRThread;
 static UINT				sg_nNoOfChannels = 0;
 static STCANDATA		sg_asCANMsg;
-int						sg_arrReadHandles[16U];
+int						sg_arrReadHandles[CHANNEL_ALLOWED];
+static INT sg_anSelectedItems[CHANNEL_ALLOWED];
 
 //CAN_SetConfigData variables
 static UCHAR sg_ucNoOfHardware = 0;
@@ -82,7 +85,7 @@ enum
 	STATE_HW_INTERFACE_SELECTED,
 	STATE_CONNECTED
 };
-BYTE sg_bCurrState = STATE_DRIVER_SELECTED;
+BYTE sg_bCurrState;
 
 //MANAGE MSG BUFFER variables
 typedef struct tagClientBufMap
@@ -106,7 +109,6 @@ typedef struct tagClientBufMap
 	}
 } SCLIENTBUFMAP;
 static UINT sg_unClientCnt = 0;
-#define MAX_CLIENT_ALLOWED 16
 static BOOL sg_bIsConnected = FALSE;
 static SCLIENTBUFMAP sg_asClientToBufMap[MAX_CLIENT_ALLOWED];
 static BOOL bRemoveClientBuffer(CBaseCANBufFSE* RootBufferArray[MAX_BUFF_ALLOWED], UINT& unCount, CBaseCANBufFSE* BufferToRemove);
@@ -260,17 +262,31 @@ HRESULT CCanBox2::CAN_GetTimeModeMapping(SYSTEMTIME& CurrSysTime, UINT64& TimeSt
 HRESULT CCanBox2::CAN_ListHwInterfaces(INTERFACE_HW_LIST& sSelHwInterface, INT& nCount, PSCONTROLLER_DETAILS InitData)
 {
 	//todo
+	sg_bCurrState = STATE_HW_INTERFACE_LISTED;
 	return S_OK;
 }
 
 HRESULT CCanBox2::CAN_SelectHwInterface(const INTERFACE_HW_LIST& sSelHwInterface, INT nCount)
 {
-	return(ActiveCanBox() == 0 ? S_OK : S_FALSE);
+	USES_CONVERSION;
+
+	VALIDATE_VALUE_RETURN_VAL(sg_bCurrState, STATE_HW_INTERFACE_LISTED, ERR_IMPROPER_STATE);
+
+	/* Check for the success */
+	sg_bCurrState = STATE_HW_INTERFACE_SELECTED;
+	for (UINT nCount = 0; nCount < sg_ucNoOfHardware; nCount++)
+	{
+		sg_ControllerDetails[nCount].m_omHardwareDesc = sSelHwInterface[nCount].m_acNameInterface;
+	}
+	return S_OK;
 }
 
 HRESULT CCanBox2::CAN_DeselectHwInterface(void)
 {
-	return(DesactiveCanBox() == 0 ? S_OK : S_FALSE);
+	VALIDATE_VALUE_RETURN_VAL(sg_bCurrState, STATE_HW_INTERFACE_SELECTED, ERR_IMPROPER_STATE);
+
+	sg_bCurrState = STATE_HW_INTERFACE_LISTED;
+	return S_OK;
 }
 
 HRESULT CCanBox2::CAN_SetConfigData(PSCONTROLLER_DETAILS InitData, int Length)
@@ -304,20 +320,36 @@ static void vWriteIntoClientsBuffer(STCANDATA& sCanData, UINT unClientIndex)
 
 static void ProcessCANMsg(int nChannelIndex, CMSG canmsg)
 {
+	//sg_asCANMsg.m_ucDataType = RX_FLAG;
+	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucDataLen = canmsg.by_len;
+	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_unMsgID = canmsg.l_id;
+	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucEXTENDED = canmsg.by_extended;
+	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucRTR = canmsg.by_remote;
+	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucChannel = canmsg.by_msg_lost;
+	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[0] = canmsg.aby_data[0];
+	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[1] = canmsg.aby_data[1];
+	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[2] = canmsg.aby_data[2];
+	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[3] = canmsg.aby_data[3];
+	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[4] = canmsg.aby_data[4];
+	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[5] = canmsg.aby_data[5];
+	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[6] = canmsg.aby_data[6];
+	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[7] = canmsg.aby_data[7];
+	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[8] = '\0';
+
 	sg_asCANMsg.m_ucDataType = RX_FLAG;
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucDataLen = canmsg.by_len;
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_unMsgID = canmsg.l_id;
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucEXTENDED = canmsg.by_extended;
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucRTR = canmsg.by_remote;
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucChannel = canmsg.by_msg_lost;
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[0] = canmsg.aby_data[0];
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[1] = canmsg.aby_data[1];
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[2] = canmsg.aby_data[2];
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[3] = canmsg.aby_data[3];
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[4] = canmsg.aby_data[4];
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[5] = canmsg.aby_data[5];
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[6] = canmsg.aby_data[6];
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[7] = canmsg.aby_data[7];
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucDataLen = 64;
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_unMsgID = 0xCB;
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucEXTENDED = FALSE;
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucRTR = FALSE;
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucChannel = 0;
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[0] = 0x0A;
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[1] = 0x0A;
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[2] = 0x0A;
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[3] = 0x0A;
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[4] = 0x0A;
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[5] = 0x0A;
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[6] = 0x0A;
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[7] = 0x0A;
 	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[8] = '\0';
 
 	vWriteIntoClientsBuffer(sg_asCANMsg, nChannelIndex);
@@ -407,6 +439,7 @@ HRESULT CCanBox2::CAN_StartHardware(void)
 {
 	g_hCan = hCan;
 	//if there's no trace i may need to connect to the hw
+	ActiveCanBox();
 	if (sg_sParmRThread.bStartThread(CanMsgReadThreadProc_CAN_AGCO))
 	{
 		sg_bCurrState = STATE_CONNECTED;
@@ -424,6 +457,7 @@ HRESULT CCanBox2::CAN_StopHardware(void)
 
 	HRESULT hResult = S_OK;
 
+	DesactiveCanBox();
 	//Terminate the read thread
 	sg_sParmRThread.bTerminateThread();
 	return S_OK;
@@ -647,13 +681,106 @@ HRESULT CCanBox2::CAN_UnloadDriverLibrary(void)
 
 HRESULT CCanBox2::CAN_SetHardwareChannel(PSCONTROLLER_DETAILS, DWORD dwDriverId, bool bIsHardwareListed, unsigned int unChannelCount)
 {
-	//todo!!!
+	for (UINT i = 0; i < CHANNEL_ALLOWED; i++)
+	{
+		sg_anSelectedItems[i] = -1;
+	}
+
+	for (int i = 0; i < NUMBER_OF_CHANNEL; i++)
+	{
+
+	}
+	//sg_ucNoOfHardware = (UCHAR)sg_SelectedChannels.m_nChannelCount;
+	//sg_nNoOfChannels = (UINT)sg_SelectedChannels.m_nChannelCount;
+
+	//bool bIsChannelSelected = false;
+	////Reorder hardware interface as per the user selection
+	//for (int nCount = 0; nCount < sg_ucNoOfHardware; nCount++)
+	//{
+	//	sg_anSelectedItems[nCount] = GetSelectedChannelIndex(nCount);
+
+	//	if (sg_anSelectedItems[nCount] != -1)
+	//	{
+	//		sg_aodChannels[nCount].m_nChannel = sg_HardwareIntr[sg_anSelectedItems[nCount]].m_dwIdInterface;
+	//		sprintf(sg_aodChannels[nCount].m_strName, _("Kvaser - %s, Serial Number- %ld, Firmware- %s"),
+	//			sg_HardwareIntr[sg_anSelectedItems[nCount]].m_acDescription.c_str(),
+	//			sg_HardwareIntr[sg_anSelectedItems[nCount]].m_dwVendor,
+	//			sg_HardwareIntr[sg_anSelectedItems[nCount]].m_acDeviceName.c_str());
+	//		bIsChannelSelected = true;
+	//	}
+	//}
+
+	if (true == bIsHardwareListed)
+	{
+		//nCreateSingleHardwareNetwork();
+
+		return S_FALSE;
+	}
 	return S_OK;
 }
 
 void CCanBox2::SendMessage(CString msg)
 {
 	AfxMessageBox(msg);
+}
+
+
+HANDLE htEventR;
+HANDLE htEventE;
+
+HRESULT CCanBox2::myCanOpen(char *name, HANDLE *handle)
+{
+	long	l_netnumber = 21;
+	long	l_txtimeout = 1000;
+	long	l_rxtimeout = 1000;
+	long	l_retval;
+
+	if (this->hardware == 0)
+	{
+		htEventR = CreateEvent(NULL, TRUE, FALSE, "R2");
+		htEventE = CreateEvent(NULL, TRUE, FALSE, "E2");
+		l_retval = this->dll_canOpen(l_netnumber, 0, 0, l_txtimeout, l_rxtimeout, name, "R1", "E1", handle);
+		if (l_retval != NTCAN_SUCCESS) {
+			printf("error occurred during canOpen!\n");
+			return NULL;
+		}
+		return S_OK;
+	}
+	return NULL;
+}
+
+HRESULT	CCanBox2::myCanClose(HANDLE handle)
+{
+	long	l_retval;
+
+	l_retval = this->dll_canClose(handle);
+	if (l_retval != NTCAN_SUCCESS) {
+		printf("error occurred during canClose!\n");
+		return S_FALSE;
+	}
+	return S_OK;
+}
+
+
+HRESULT	CCanBox2::GetHWinfo(HANDLE handle, unsigned long *pulSNHigh, unsigned long *pulSNLow, int *res)
+{
+	(*res) = this->dll_canGetHWSerialNumber(handle, pulSNHigh, pulSNLow);
+	return S_OK;
+}
+
+T_DeviceList	*CCanBox2::GetHardwareList()
+{
+	T_DeviceList	*hwlist;
+	long			nb;
+
+	if (this->dll_canGetNumberOfConnectedDevices(&nb) != NTCAN_SUCCESS)
+		return NULL;
+	this->hardware = nb;
+	if (!(hwlist = (T_DeviceList*)malloc(sizeof(T_DeviceList) * nb)))
+		return NULL;
+	if (this->dll_canGetDeviceList(hwlist) != NTCAN_SUCCESS)
+		return NULL;
+	return hwlist;
 }
 
 int CCanBox2::Initialisation()
