@@ -156,6 +156,8 @@ class CCanBox2 : public CBaseDIL_CAN_Controller
 		void			SendMessage(CString msg);
 		long			get_dll_canRead(CMSG *t_canmsg, long *len);
 		T_DeviceList	*GetHardwareList(void);
+		int				nConnectedHardware();
+		int				nInitHwNetwork(PSCONTROLLER_DETAILS InitData, UINT unDefaultChannelCnt);
 
 		CCanBox2();
 		virtual			~CCanBox2();
