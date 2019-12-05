@@ -119,7 +119,6 @@ static DWORD dwGetAvailableClientSlot();
 static BOOL bClientExist(std::string pcClientName, INT& Index);
 static BOOL bRemoveClient(DWORD dwClientId);
 static void ProcessCANMsg(int nChannelIndex, CMSG canmsg);
-DWORD WINAPI CanMsgReadThreadProc_CAN_AGCO(LPVOID pVoid);
 
 //////////Vector ////////////
 
@@ -246,7 +245,9 @@ HRESULT CCanBox2::CAN_PerformInitOperations(void)
 
 HRESULT CCanBox2::CAN_PerformClosureOperations(void)
 {
-	this->dll_canClose(hCan);
+	sg_sParmRThread.bTerminateThread();
+
+	//this->dll_canClose(hCan);
 	return S_OK;
 }
 
@@ -269,32 +270,33 @@ int		CCanBox2::nConnectedHardware()
 	return nb;
 }
 
-static int nCreateMultipleHardwareNetwork(PSCONTROLLER_DETAILS InitData, UINT unDefaultChannelCnt = 0)
+int CCanBox2::nCreateMultipleHardwareNetwork(PSCONTROLLER_DETAILS InitData, UINT unDefaultChannelCnt)
 {
-	int nHardwareCountPrev = sg_ucNoOfHardware;
-	int nHwCount = sg_ucNoOfHardware;
-	DWORD dwFirmWare[2];
-	char chBuffer[512] = "";
-	sg_HardwareList.m_nChannelCount = nHwCount;
+	//int nHardwareCountPrev = sg_ucNoOfHardware;
+	//int nHwCount = sg_ucNoOfHardware;
+	//DWORD dwFirmWare[2];
+	//char chBuffer[512] = "";
+
+	//sg_HardwareList.m_nChannelCount = nHwCount;
 	// Get Hardware Network Map
-	for (int nCount = 0; nCount < nHwCount; nCount++)
-	{
-		sg_HardwareIntr[nCount].m_dwIdInterface = nCount;
-		sg_HardwareIntr[nCount].m_acDescription = chBuffer;
-		sg_HardwareIntr[nCount].m_dwVendor = 11928;
-		//Get Firmware info
-		//sprintf_s(chBuffer, sizeof(chBuffer), "0x%08lx 0x%08lx", dwFirmWare[0], dwFirmWare[1]);
-		sg_HardwareIntr[nCount].m_acDeviceName = chBuffer;
-	//	sprintf(chBuffer, ("AGCO - %s, Serial Number- %ld, Firmware- %s"),
-	//		sg_HardwareIntr[nCount].m_acDescription.c_str(),
-	//		sg_HardwareIntr[nCount].m_dwVendor,
-	//		sg_HardwareIntr[nCount].m_acDeviceName.c_str());
-		sg_HardwareList.m_omHardwareChannel[nCount] = chBuffer;
-		sg_HardwareList.m_ouChannelDetails[nCount].m_omVendorId = sg_HardwareIntr[nCount].m_dwVendor;
-		sg_HardwareList.m_ouChannelDetails[nCount].m_omChannelName = sg_HardwareIntr[nCount].m_acDescription.c_str();
-		sg_HardwareList.m_ouChannelDetails[nCount].m_omFirmware = sg_HardwareIntr[nCount].m_acDeviceName;
-		//sprintf(sg_HardwareIntr[nCount].m_acDeviceName,"0x%08lx 0x%08lx", dwFirmWare[0], dwFirmWare[1]);
-	}
+	//for (int nCount = 0; nCount < nHwCount; nCount++)
+	//{
+	//	sg_HardwareIntr[nCount].m_dwIdInterface = nCount;
+	//	sg_HardwareIntr[nCount].m_acDescription = chBuffer;
+	//	sg_HardwareIntr[nCount].m_dwVendor = 11928;
+	//	//Get Firmware info
+	//	//sprintf_s(chBuffer, sizeof(chBuffer), "0x%08lx 0x%08lx", dwFirmWare[0], dwFirmWare[1]);
+	//	sg_HardwareIntr[nCount].m_acDeviceName = chBuffer;
+	////	sprintf(chBuffer, ("AGCO - %s, Serial Number- %ld, Firmware- %s"),
+	////		sg_HardwareIntr[nCount].m_acDescription.c_str(),
+	////		sg_HardwareIntr[nCount].m_dwVendor,
+	////		sg_HardwareIntr[nCount].m_acDeviceName.c_str());
+	//	sg_HardwareList.m_omHardwareChannel[nCount] = chBuffer;
+	//	sg_HardwareList.m_ouChannelDetails[nCount].m_omVendorId = sg_HardwareIntr[nCount].m_dwVendor;
+	//	sg_HardwareList.m_ouChannelDetails[nCount].m_omChannelName = sg_HardwareIntr[nCount].m_acDescription.c_str();
+	//	sg_HardwareList.m_ouChannelDetails[nCount].m_omFirmware = sg_HardwareIntr[nCount].m_acDeviceName;
+	//	//sprintf(sg_HardwareIntr[nCount].m_acDeviceName,"0x%08lx 0x%08lx", dwFirmWare[0], dwFirmWare[1]);
+	//}
 
 	/* If the default channel count parameter is set, prevent displaying the hardware selection dialog */
 	//if (unDefaultChannelCnt && nHwCount >= unDefaultChannelCnt)
@@ -460,93 +462,20 @@ long  CCanBox2::get_dll_canRead(CMSG *canmsg, long *len)
 	return this->dll_canRead(g_hCan, canmsg, len);
 }
 
-DWORD WINAPI CanMsgReadThreadProc_CAN_AGCO(LPVOID pVoid)
-{
-	USES_CONVERSION;
-	CCanBox2		fct;
-	short			nStatus = canOK;
-	bool			bLoopON = true;
-	int				moreDataExist;
-	long			len;
-	CMSG			t_canmsg;
-	CPARAM_THREADPROC* pThread = (CPARAM_THREADPROC*)pVoid;
-
-	/* Validate certain required pointers */
-	VALIDATE_POINTER_RETURN_VAL(pThread, (DWORD)-1);
-	/* Assign thread action to CREATE_TIME_MAP */
-	pThread->m_unActionCode = CREATE_TIME_MAP;
-
-	while (bLoopON)
-	{
-		WaitForMultipleObjects(sg_nNoOfChannels, g_hDataEvent, FALSE, INFINITE);
-		switch (pThread->m_unActionCode)
-		{
-			case INVOKE_FUNCTION:
-			{
-				do
-				{
-					moreDataExist = 0;
-					for (UINT i = 0; i < sg_nNoOfChannels; i++)
-					{
-						//Read CAN Message from channel
-						nStatus = fct.get_dll_canRead(&t_canmsg, &len);
-						switch (nStatus)
-						{
-							case canOK:
-								ProcessCANMsg(i, t_canmsg);
-								moreDataExist = 1;
-								break;
-							default:
-								break;
-						}
-					}
-				} while (moreDataExist);
-			}
-			break;
-			case EXIT_THREAD:
-			{
-				bLoopON = false;
-			}
-			break;		
-			case CREATE_TIME_MAP:
-			{
-				SetEvent(pThread->m_hActionEvent);
-				pThread->m_unActionCode = INVOKE_FUNCTION;
-			}
-			break;
-			default:
-			case INACTION:
-			{
-				// nothing right at this moment
-			}
-		break;
-		}
-	}
-
-	SetEvent(pThread->hGetExitNotifyEvent());
-	for (UINT i = 0; i < sg_nNoOfChannels + 1; i++)
-	{
-		ResetEvent(g_hDataEvent[i]);
-		g_hDataEvent[i] = nullptr;
-	}
-	pThread->m_hActionEvent = nullptr;
-
-	return 0;
-}
-
 HRESULT CCanBox2::CAN_StartHardware(void)
 {
+	VALIDATE_VALUE_RETURN_VAL(sg_bCurrState, STATE_HW_INTERFACE_SELECTED, ERR_IMPROPER_STATE);
 	g_hCan = hCan;
 	ActiveCanBox();
+	sg_bCurrState = STATE_CONNECTED;
 	return S_OK;
 }
 
 HRESULT CCanBox2::CAN_StopHardware(void)
-{ // ??? 
+{  
 	VALIDATE_VALUE_RETURN_VAL(sg_bCurrState, STATE_CONNECTED, ERR_IMPROPER_STATE);
 
-	HRESULT hResult = S_OK;
-
+	sg_bCurrState = STATE_HW_INTERFACE_SELECTED;
 	DesactiveCanBox();
 	//Terminate the read thread
 	sg_sParmRThread.bTerminateThread();
@@ -875,25 +804,23 @@ T_DeviceList	*CCanBox2::GetHardwareList()
 
 int CCanBox2::Initialisation()
 {
-	return Initialisation(1,CAN_250,CAN_SAMPLE_3, -1);
+	return Initialisation(1,CAN_250,CAN_SAMPLE_3, 0);
 }
 
 int CCanBox2::Initialisation(int NumVoie,unsigned long vitesse,unsigned char echantillonnage)
 {
-	return Initialisation(NumVoie,0,vitesse,echantillonnage, -1);
+	return Initialisation(NumVoie,0,vitesse,echantillonnage, 0);
 }
 
 int CCanBox2::Initialisation(int NumVoie,int Echo,unsigned long vitesse,unsigned char echantillonnage)
 {
-	return Initialisation(NumVoie,0,vitesse,echantillonnage, -1);
+	return Initialisation(NumVoie,0,vitesse,echantillonnage, 0);
 }
 
 //Use var HardwareChoosed to 0 or 1 to tes only one type of cards 0=test canbox, 1=test canbase
 int CCanBox2::Initialisation(int NumVoie,int Echo,unsigned long vitesse,unsigned char echantillonnage, int HardwareChoosed)
 {
-		//YMO: check first if Vector CAN card is present, for mass prod bench using both CAN cards
 
-		HARDWARE = 1;
 
 		int VoixCanCase;
 		CString msg;
@@ -905,8 +832,6 @@ int CCanBox2::Initialisation(int NumVoie,int Echo,unsigned long vitesse,unsigned
 		
 		if(HardwareChoosed == 0) //Si demander d'utiliser la canbox, on ne fait pas la partie canbase
 			goto HardCanBox;
-
-		HARDWARE = 1;
 		
 		if ((int) (hVXLAPIDLL = LoadLibrary ("VXLAPI.DLL")) <=  HINSTANCE_ERROR) 
 		{    
@@ -924,8 +849,6 @@ int CCanBox2::Initialisation(int NumVoie,int Echo,unsigned long vitesse,unsigned
 
 		VoixCanCase = NumVoie-1;
 		NumChannel = NumVoie;
-
-
 
 		XLaccess      xlChanMaskTx = 0;
 
