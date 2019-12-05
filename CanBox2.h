@@ -159,6 +159,7 @@ class CCanBox2 : public CBaseDIL_CAN_Controller
 		int				nConnectedHardware();
 		int				nInitHwNetwork(PSCONTROLLER_DETAILS InitData, UINT unDefaultChannelCnt);
 		int				nCreateMultipleHardwareNetwork(PSCONTROLLER_DETAILS InitData, UINT unDefaultChannelCnt);
+		void			can_reader(void);
 
 		CCanBox2();
 		virtual			~CCanBox2();

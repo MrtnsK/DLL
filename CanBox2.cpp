@@ -420,40 +420,22 @@ static void vWriteIntoClientsBuffer(STCANDATA& sCanData, UINT unClientIndex)
 	}
 }
 
-static void ProcessCANMsg(int nChannelIndex, CMSG canmsg)
+static void ProcessCANMsg(CMSG canmsg, unsigned int nChannelIndex)
 {
-	//sg_asCANMsg.m_ucDataType = RX_FLAG;
-	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucDataLen = canmsg.by_len;
-	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_unMsgID = canmsg.l_id;
-	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucEXTENDED = canmsg.by_extended;
-	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucRTR = canmsg.by_remote;
-	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucChannel = canmsg.by_msg_lost;
-	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[0] = canmsg.aby_data[0];
-	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[1] = canmsg.aby_data[1];
-	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[2] = canmsg.aby_data[2];
-	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[3] = canmsg.aby_data[3];
-	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[4] = canmsg.aby_data[4];
-	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[5] = canmsg.aby_data[5];
-	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[6] = canmsg.aby_data[6];
-	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[7] = canmsg.aby_data[7];
-	//sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[8] = '\0';
-
 	sg_asCANMsg.m_ucDataType = RX_FLAG;
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucDataLen = 64;
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_unMsgID = 0xCB;
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucEXTENDED = FALSE;
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucRTR = FALSE;
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucChannel = 0;
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[0] = 0x0A;
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[1] = 0x0A;
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[2] = 0x0A;
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[3] = 0x0A;
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[4] = 0x0A;
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[5] = 0x0A;
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[6] = 0x0A;
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[7] = 0x0A;
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[8] = '\0';
-
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucDataLen = canmsg.by_len;
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_unMsgID = canmsg.l_id;
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucEXTENDED = canmsg.by_extended;
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucRTR = canmsg.by_remote;
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucChannel = canmsg.by_msg_lost;
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[0] = canmsg.aby_data[0];
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[1] = canmsg.aby_data[1];
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[2] = canmsg.aby_data[2];
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[3] = canmsg.aby_data[3];
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[4] = canmsg.aby_data[4];
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[5] = canmsg.aby_data[5];
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[6] = canmsg.aby_data[6];
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[7] = canmsg.aby_data[7];
 	vWriteIntoClientsBuffer(sg_asCANMsg, nChannelIndex);
 }
 
@@ -462,11 +444,39 @@ long  CCanBox2::get_dll_canRead(CMSG *canmsg, long *len)
 	return this->dll_canRead(g_hCan, canmsg, len);
 }
 
+void	CCanBox2::can_reader(void)
+{
+	long			len = 1;
+	CMSG			canmsg;
+	unsigned int	i = 0;
+	while (!bStopThread && i < 32)
+	{
+		if (get_dll_canRead(&canmsg, &len) == NTCAN_SUCCESS)
+			ProcessCANMsg(canmsg, i);
+		i++;
+	}
+}
+
+DWORD WINAPI can_read(LPVOID lpParam)
+{
+	CCanBox2 *CanUsb = (CCanBox2*)lpParam;
+	while (WaitForSingleObject(CanUsb->d_eventStop, 0) == WAIT_TIMEOUT)
+	{
+		CanUsb->can_reader();
+		Sleep(1);
+	};
+	CanUsb->FlagFinThread = true;
+	return OK;
+}
+
 HRESULT CCanBox2::CAN_StartHardware(void)
 {
 	VALIDATE_VALUE_RETURN_VAL(sg_bCurrState, STATE_HW_INTERFACE_SELECTED, ERR_IMPROPER_STATE);
+	DWORD dwThreadId = 1;
 	g_hCan = hCan;
+
 	ActiveCanBox();
+	//hThread = CreateThread(NULL, 0, can_read, this, 0, &dwThreadId);
 	sg_bCurrState = STATE_CONNECTED;
 	return S_OK;
 }
@@ -478,7 +488,6 @@ HRESULT CCanBox2::CAN_StopHardware(void)
 	sg_bCurrState = STATE_HW_INTERFACE_SELECTED;
 	DesactiveCanBox();
 	//Terminate the read thread
-	sg_sParmRThread.bTerminateThread();
 	return S_OK;
 }
 
@@ -700,41 +709,29 @@ HRESULT CCanBox2::CAN_UnloadDriverLibrary(void)
 
 HRESULT CCanBox2::CAN_SetHardwareChannel(PSCONTROLLER_DETAILS, DWORD dwDriverId, bool bIsHardwareListed, unsigned int unChannelCount)
 {
-	/*for (UINT i = 0; i < CHANNEL_ALLOWED; i++)
-	{
-		sg_anSelectedItems[i] = -1;
-	}
+	sg_anSelectedItems[0] = 2;
+	sg_anSelectedItems[1] = 2;
+	sg_anSelectedItems[2] = -1;
+	sg_SelectedChannels.m_nChannelCount = 2;
+	sg_SelectedChannels.m_omHardwareChannel[0] = "";
+	sg_SelectedChannels.m_omHardwareChannel[1] = "";
 
-	for (int i = 0; i < NUMBER_OF_CHANNEL; i++)
-	{
+	sg_HardwareIntr[0].m_dwIdInterface = (ULONG)1;
+	sg_HardwareIntr[0].m_dwVendor = (ULONG)11928;
+	sg_HardwareIntr[0].m_bytNetworkID = 21;
+	sg_HardwareIntr[0].m_acNameInterface = "AGCO";
+	sg_HardwareIntr[0].m_acDescription = "CANUSB";
+	sg_HardwareIntr[0].m_acDeviceName = "AGCO AC0011928 Can1";
+	sg_HardwareIntr[0].m_acAdditionalInfo = "1";
 
-	}*/
-	//sg_ucNoOfHardware = (UCHAR)sg_SelectedChannels.m_nChannelCount;
-	//sg_nNoOfChannels = (UINT)sg_SelectedChannels.m_nChannelCount;
+	sg_HardwareIntr[1].m_dwIdInterface = (ULONG)2;
+	sg_HardwareIntr[1].m_dwVendor = (ULONG)11928;
+	sg_HardwareIntr[1].m_bytNetworkID = 22;
+	sg_HardwareIntr[1].m_acNameInterface = "AGCO";
+	sg_HardwareIntr[1].m_acDescription = "CANUSB";
+	sg_HardwareIntr[1].m_acDeviceName = "AGCO AC0011928 Can2";
+	sg_HardwareIntr[1].m_acAdditionalInfo = "2";
 
-	//bool bIsChannelSelected = false;
-	////Reorder hardware interface as per the user selection
-	//for (int nCount = 0; nCount < sg_ucNoOfHardware; nCount++)
-	//{
-	//	sg_anSelectedItems[nCount] = GetSelectedChannelIndex(nCount);
-
-	//	if (sg_anSelectedItems[nCount] != -1)
-	//	{
-	//		sg_aodChannels[nCount].m_nChannel = sg_HardwareIntr[sg_anSelectedItems[nCount]].m_dwIdInterface;
-	//		sprintf(sg_aodChannels[nCount].m_strName, _("Kvaser - %s, Serial Number- %ld, Firmware- %s"),
-	//			sg_HardwareIntr[sg_anSelectedItems[nCount]].m_acDescription.c_str(),
-	//			sg_HardwareIntr[sg_anSelectedItems[nCount]].m_dwVendor,
-	//			sg_HardwareIntr[sg_anSelectedItems[nCount]].m_acDeviceName.c_str());
-	//		bIsChannelSelected = true;
-	//	}
-	//}
-
-	//if (true == bIsHardwareListed)
-	//{
-	//	//nCreateSingleHardwareNetwork();
-
-	//	return S_FALSE;
-	//}
 	return S_OK;
 }
 
@@ -817,7 +814,7 @@ int CCanBox2::Initialisation(int NumVoie,int Echo,unsigned long vitesse,unsigned
 	return Initialisation(NumVoie,0,vitesse,echantillonnage, 0);
 }
 
-//Use var HardwareChoosed to 0 or 1 to tes only one type of cards 0=test canbox, 1=test canbase
+//Use var HardwareChoosed to 0 or 1 to test only one type of cards 0=test canbox, 1=test canbase
 int CCanBox2::Initialisation(int NumVoie,int Echo,unsigned long vitesse,unsigned char echantillonnage, int HardwareChoosed)
 {
 
@@ -1353,7 +1350,7 @@ int CCanBox2::ActiveCanBox()
 				hThread = CreateThread(
 										NULL,                        // default security attributes
 										0,                           // use default stack size
-										ThreadDepilement,	         // thread function
+					can_read,	         // thread function
 										this,						 // argument to thread function
 										0,                           // use default creation flags
 										&dwThreadId );               // returns the thread identifier
