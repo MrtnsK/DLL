@@ -54,7 +54,6 @@ HINSTANCE hVXLAPIDLL;
 HANDLE g_hCan;
 HANDLE InputHandle=NULL;
 HANDLE g_hDataEvent[defNO_OF_CHANNELS] = { 0 };
-//HANDLE hThread=NULL;
 
 int ret_DesactiveCanBox;
 int BusLoadSecure[2] = {1,1};
@@ -118,7 +117,6 @@ static BOOL bGetClientObj(DWORD dwClientID, UINT& unClientIndex);
 static DWORD dwGetAvailableClientSlot();
 static BOOL bClientExist(std::string pcClientName, INT& Index);
 static BOOL bRemoveClient(DWORD dwClientId);
-static void ProcessCANMsg(int nChannelIndex, CMSG canmsg);
 
 //////////Vector ////////////
 
@@ -245,9 +243,8 @@ HRESULT CCanBox2::CAN_PerformInitOperations(void)
 
 HRESULT CCanBox2::CAN_PerformClosureOperations(void)
 {
-	sg_sParmRThread.bTerminateThread();
-
-	//this->dll_canClose(hCan);
+	dll_canClose(hThread); // might be unnecessary
+	dll_canClose(hCan);
 	return S_OK;
 }
 
@@ -420,14 +417,17 @@ static void vWriteIntoClientsBuffer(STCANDATA& sCanData, UINT unClientIndex)
 	}
 }
 
-static void ProcessCANMsg(CMSG canmsg, unsigned int nChannelIndex)
+void CCanBox2::ProcessCANMsg(CMSG canmsg, unsigned int nChannelIndex)
 {
+	if (oldtstamp == 0)
+		oldtstamp = canmsg.ul_tstamp;
+	sg_asCANMsg.m_lTickCount.QuadPart = canmsg.ul_tstamp - oldtstamp;
 	sg_asCANMsg.m_ucDataType = RX_FLAG;
 	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucDataLen = canmsg.by_len;
 	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_unMsgID = canmsg.l_id;
 	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucEXTENDED = canmsg.by_extended;
 	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucRTR = canmsg.by_remote;
-	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucChannel = canmsg.by_msg_lost;
+	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucChannel = nChannelIndex + 1;
 	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[0] = canmsg.aby_data[0];
 	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[1] = canmsg.aby_data[1];
 	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[2] = canmsg.aby_data[2];
@@ -449,7 +449,7 @@ void	CCanBox2::can_reader(void)
 	long			len = 1;
 	CMSG			canmsg;
 	unsigned int	i = 0;
-	while (!bStopThread && i < 32)
+	while (!bStopThread && i < 2)
 	{
 		if (get_dll_canRead(&canmsg, &len) == NTCAN_SUCCESS)
 			ProcessCANMsg(canmsg, i);
@@ -463,8 +463,8 @@ DWORD WINAPI can_read(LPVOID lpParam)
 	while (WaitForSingleObject(CanUsb->d_eventStop, 0) == WAIT_TIMEOUT)
 	{
 		CanUsb->can_reader();
-		Sleep(1);
-	};
+		Sleep(0);
+	}
 	CanUsb->FlagFinThread = true;
 	return OK;
 }
@@ -472,22 +472,37 @@ DWORD WINAPI can_read(LPVOID lpParam)
 HRESULT CCanBox2::CAN_StartHardware(void)
 {
 	VALIDATE_VALUE_RETURN_VAL(sg_bCurrState, STATE_HW_INTERFACE_SELECTED, ERR_IMPROPER_STATE);
+	sg_bCurrState = STATE_CONNECTED;
 	DWORD dwThreadId = 1;
 	g_hCan = hCan;
 
-	ActiveCanBox();
-	//hThread = CreateThread(NULL, 0, can_read, this, 0, &dwThreadId);
-	sg_bCurrState = STATE_CONNECTED;
+	FlagFinThread = false;
+	bStopThread = false;
+	d_eventStop = CreateEvent(NULL, FALSE, FALSE, "event_StopThread");
+	hThread = CreateThread(NULL, 0, can_read, this, 0, &dwThreadId);
+	SetThreadPriority(hThread, THREAD_PRIORITY_NORMAL);
 	return S_OK;
 }
 
 HRESULT CCanBox2::CAN_StopHardware(void)
 {  
 	VALIDATE_VALUE_RETURN_VAL(sg_bCurrState, STATE_CONNECTED, ERR_IMPROPER_STATE);
-
 	sg_bCurrState = STATE_HW_INTERFACE_SELECTED;
-	DesactiveCanBox();
-	//Terminate the read thread
+	ClearBuffer();
+	if (d_eventStop)
+		SetEvent(d_eventStop);
+	if (hThread)
+		if (dll_canIsHandleValid(hCan) == NTCAN_SUCCESS)
+		{
+			bStopThread = true;
+			dll_canBreakCanRead(hCan);
+		}
+	if (dll_canIsHandleValid(hCan) == NTCAN_SUCCESS)
+	{
+		errSIECA = dll_canIdDeleteArray(hCan);
+		if (errSIECA != NTCAN_SUCCESS)
+			return S_FALSE;
+	}
 	return S_OK;
 }
 
@@ -726,7 +741,7 @@ HRESULT CCanBox2::CAN_SetHardwareChannel(PSCONTROLLER_DETAILS, DWORD dwDriverId,
 
 	sg_HardwareIntr[1].m_dwIdInterface = (ULONG)2;
 	sg_HardwareIntr[1].m_dwVendor = (ULONG)11928;
-	sg_HardwareIntr[1].m_bytNetworkID = 22;
+	sg_HardwareIntr[1].m_bytNetworkID = 21;
 	sg_HardwareIntr[1].m_acNameInterface = "AGCO";
 	sg_HardwareIntr[1].m_acDescription = "CANUSB";
 	sg_HardwareIntr[1].m_acDeviceName = "AGCO AC0011928 Can2";
@@ -1197,7 +1212,7 @@ HardCanBox:
 			return NOT_OK;
 		}
 
-		ActiveCanBox();
+		//ActiveCanBox();
 
 		ListeMessages.Can[NumChannel-1].bModeCanalyzer = false;
 
@@ -1350,7 +1365,7 @@ int CCanBox2::ActiveCanBox()
 				hThread = CreateThread(
 										NULL,                        // default security attributes
 										0,                           // use default stack size
-					can_read,	         // thread function
+										ThreadDepilement,	         // thread function
 										this,						 // argument to thread function
 										0,                           // use default creation flags
 										&dwThreadId );               // returns the thread identifier
@@ -1633,7 +1648,7 @@ DWORD WINAPI ThreadDepilement(LPVOID lpParam)
 
 	while( WaitForSingleObject( CanUsb->d_eventStop, 0 ) == WAIT_TIMEOUT )
 	{
-		CanUsb->TraiteCanBox(CanUsb->NumChannel);
+		//CanUsb->TraiteCanBox(CanUsb->NumChannel);
 		Sleep(10);
 	};
 

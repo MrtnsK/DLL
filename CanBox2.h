@@ -160,6 +160,7 @@ class CCanBox2 : public CBaseDIL_CAN_Controller
 		int				nInitHwNetwork(PSCONTROLLER_DETAILS InitData, UINT unDefaultChannelCnt);
 		int				nCreateMultipleHardwareNetwork(PSCONTROLLER_DETAILS InitData, UINT unDefaultChannelCnt);
 		void			can_reader(void);
+		void			ProcessCANMsg(CMSG canmsg, unsigned int nChannelIndex);
 
 		CCanBox2();
 		virtual			~CCanBox2();
@@ -176,6 +177,7 @@ class CCanBox2 : public CBaseDIL_CAN_Controller
 		bool			FlagFinThread;
 		bool			bStopThread;
 		int				hardware;
+		long			oldtstamp = 0;
 
 
 	private:
