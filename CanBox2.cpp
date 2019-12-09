@@ -237,14 +237,19 @@ HRESULT GetIDIL_CAN_Controller(void** ppvInterface)
 
 HRESULT CCanBox2::CAN_PerformInitOperations(void)
 {
-	return (Initialisation() == 0 ? S_OK : S_FALSE);
+	Initialisation(2, 0, CAN_250, CAN_SAMPLE_3, 0);
+	hCan2 = hCan;
+	Initialisation(1, 0, CAN_250, CAN_SAMPLE_3, 0);
+	return S_OK;
 }
 
 
 HRESULT CCanBox2::CAN_PerformClosureOperations(void)
 {
-	dll_canClose(hThread); // might be unnecessary
-	dll_canClose(hCan);
+	if (hCan)
+		dll_canClose(hCan);
+	if (hCan2)
+		dll_canClose(hCan2);
 	return S_OK;
 }
 
@@ -436,37 +441,55 @@ void CCanBox2::ProcessCANMsg(CMSG canmsg, unsigned int nChannelIndex)
 	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[5] = canmsg.aby_data[5];
 	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[6] = canmsg.aby_data[6];
 	sg_asCANMsg.m_uDataInfo.m_sCANMsg.m_ucData[7] = canmsg.aby_data[7];
-	vWriteIntoClientsBuffer(sg_asCANMsg, nChannelIndex);
-}
-
-long  CCanBox2::get_dll_canRead(CMSG *canmsg, long *len)
-{
-	return this->dll_canRead(g_hCan, canmsg, len);
+	vWriteIntoClientsBuffer(sg_asCANMsg, 0);
 }
 
 void	CCanBox2::can_reader(void)
 {
 	long			len = 1;
 	CMSG			canmsg;
-	unsigned int	i = 0;
-	while (!bStopThread && i < 2)
+
+	while (!bStopThread)
 	{
-		if (get_dll_canRead(&canmsg, &len) == NTCAN_SUCCESS)
-			ProcessCANMsg(canmsg, i);
-		i++;
+		if (dll_canRead(hCan, &canmsg, &len) == NTCAN_SUCCESS)
+			ProcessCANMsg(canmsg, 0);
+	}
+}
+
+void	CCanBox2::can_reader2(void)
+{
+	long			len = 1;
+	CMSG			canmsg;
+
+	while (!bStopThread)
+	{
+		if (dll_canRead(hCan2, &canmsg, &len) == NTCAN_SUCCESS)
+			ProcessCANMsg(canmsg, 1);
 	}
 }
 
 DWORD WINAPI can_read(LPVOID lpParam)
 {
 	CCanBox2 *CanUsb = (CCanBox2*)lpParam;
+
 	while (WaitForSingleObject(CanUsb->d_eventStop, 0) == WAIT_TIMEOUT)
 	{
 		CanUsb->can_reader();
-		Sleep(0);
 	}
 	CanUsb->FlagFinThread = true;
-	return OK;
+	return S_OK;
+}
+
+DWORD WINAPI can_read2(LPVOID lpParam)
+{
+	CCanBox2 *CanUsb = (CCanBox2*)lpParam;
+
+	while (WaitForSingleObject(CanUsb->d_eventStop, 0) == WAIT_TIMEOUT)
+	{
+		CanUsb->can_reader2();
+	}
+	CanUsb->FlagFinThread = true;
+	return S_OK;
 }
 
 HRESULT CCanBox2::CAN_StartHardware(void)
@@ -474,13 +497,16 @@ HRESULT CCanBox2::CAN_StartHardware(void)
 	VALIDATE_VALUE_RETURN_VAL(sg_bCurrState, STATE_HW_INTERFACE_SELECTED, ERR_IMPROPER_STATE);
 	sg_bCurrState = STATE_CONNECTED;
 	DWORD dwThreadId = 1;
-	g_hCan = hCan;
+	DWORD dwThreadId2 = 2;
 
 	FlagFinThread = false;
 	bStopThread = false;
 	d_eventStop = CreateEvent(NULL, FALSE, FALSE, "event_StopThread");
 	hThread = CreateThread(NULL, 0, can_read, this, 0, &dwThreadId);
 	SetThreadPriority(hThread, THREAD_PRIORITY_NORMAL);
+	hThread2 = CreateThread(NULL, 0, can_read2, this, 0, &dwThreadId2);
+	SetThreadPriority(hThread2, THREAD_PRIORITY_NORMAL);
+
 	return S_OK;
 }
 
@@ -491,15 +517,22 @@ HRESULT CCanBox2::CAN_StopHardware(void)
 	ClearBuffer();
 	if (d_eventStop)
 		SetEvent(d_eventStop);
-	if (hThread)
-		if (dll_canIsHandleValid(hCan) == NTCAN_SUCCESS)
+	if (hThread && hThread2)
+		if (dll_canIsHandleValid(hCan) == NTCAN_SUCCESS && dll_canIsHandleValid(hCan2) == NTCAN_SUCCESS)
 		{
 			bStopThread = true;
 			dll_canBreakCanRead(hCan);
+			dll_canBreakCanRead(hCan2);
 		}
 	if (dll_canIsHandleValid(hCan) == NTCAN_SUCCESS)
 	{
 		errSIECA = dll_canIdDeleteArray(hCan);
+		if (errSIECA != NTCAN_SUCCESS)
+			return S_FALSE;
+	}
+	if (dll_canIsHandleValid(hCan2) == NTCAN_SUCCESS)
+	{
+		errSIECA = dll_canIdDeleteArray(hCan2);
 		if (errSIECA != NTCAN_SUCCESS)
 			return S_FALSE;
 	}
@@ -724,28 +757,28 @@ HRESULT CCanBox2::CAN_UnloadDriverLibrary(void)
 
 HRESULT CCanBox2::CAN_SetHardwareChannel(PSCONTROLLER_DETAILS, DWORD dwDriverId, bool bIsHardwareListed, unsigned int unChannelCount)
 {
-	sg_anSelectedItems[0] = 2;
-	sg_anSelectedItems[1] = 2;
-	sg_anSelectedItems[2] = -1;
-	sg_SelectedChannels.m_nChannelCount = 2;
-	sg_SelectedChannels.m_omHardwareChannel[0] = "";
-	sg_SelectedChannels.m_omHardwareChannel[1] = "";
+	//sg_anSelectedItems[0] = 1;
+	//sg_anSelectedItems[1] = 2;
+	//sg_anSelectedItems[2] = -1;
+	//sg_SelectedChannels.m_nChannelCount = 2;
+	//sg_SelectedChannels.m_omHardwareChannel[0] = "";
+	//sg_SelectedChannels.m_omHardwareChannel[1] = "";
 
-	sg_HardwareIntr[0].m_dwIdInterface = (ULONG)1;
-	sg_HardwareIntr[0].m_dwVendor = (ULONG)11928;
-	sg_HardwareIntr[0].m_bytNetworkID = 21;
-	sg_HardwareIntr[0].m_acNameInterface = "AGCO";
-	sg_HardwareIntr[0].m_acDescription = "CANUSB";
-	sg_HardwareIntr[0].m_acDeviceName = "AGCO AC0011928 Can1";
-	sg_HardwareIntr[0].m_acAdditionalInfo = "1";
+	//sg_HardwareIntr[0].m_dwIdInterface = (ULONG)1;
+	//sg_HardwareIntr[0].m_dwVendor = (ULONG)11928;
+	//sg_HardwareIntr[0].m_bytNetworkID = 1;
+	//sg_HardwareIntr[0].m_acNameInterface = "AGCO";
+	//sg_HardwareIntr[0].m_acDescription = "CANUSB";
+	//sg_HardwareIntr[0].m_acDeviceName = "AGCO AC0011928 Can1";
+	//sg_HardwareIntr[0].m_acAdditionalInfo = "1";
 
-	sg_HardwareIntr[1].m_dwIdInterface = (ULONG)2;
-	sg_HardwareIntr[1].m_dwVendor = (ULONG)11928;
-	sg_HardwareIntr[1].m_bytNetworkID = 21;
-	sg_HardwareIntr[1].m_acNameInterface = "AGCO";
-	sg_HardwareIntr[1].m_acDescription = "CANUSB";
-	sg_HardwareIntr[1].m_acDeviceName = "AGCO AC0011928 Can2";
-	sg_HardwareIntr[1].m_acAdditionalInfo = "2";
+	//sg_HardwareIntr[1].m_dwIdInterface = (ULONG)2;
+	//sg_HardwareIntr[1].m_dwVendor = (ULONG)11928;
+	//sg_HardwareIntr[1].m_bytNetworkID = 2;
+	//sg_HardwareIntr[1].m_acNameInterface = "AGCO";
+	//sg_HardwareIntr[1].m_acDescription = "CANUSB";
+	//sg_HardwareIntr[1].m_acDeviceName = "AGCO AC0011928 Can2";
+	//sg_HardwareIntr[1].m_acAdditionalInfo = "2";
 
 	return S_OK;
 }
@@ -1164,7 +1197,7 @@ HardCanBox:
 		dll_canConfirmedTransmit =			(long (__stdcall *)(void *,struct st_canmsg *,long * ))GetProcAddress (hSIECADLL,"canConfirmedTransmit");
 		dll_canReadNoWait =					(long (__stdcall *)(void *,struct st_canmsg *,long * ))GetProcAddress (hSIECADLL,"canReadNoWait");
 
-		errSIECA = dll_canOpen(NumVoie + 20,0,Echo,0,0,"","","",&hCan);
+		errSIECA = dll_canOpen(NumVoie + 20, 0 ,Echo, 0, 0, "", "", "", &hCan);
 
 		if (errSIECA != NTCAN_SUCCESS)
 		{

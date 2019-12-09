@@ -154,12 +154,12 @@ class CCanBox2 : public CBaseDIL_CAN_Controller
 		int				AppliqueFiltre(int etat);
 		void			TraiteCanBox(int NumeroChannel);
 		void			SendMessage(CString msg);
-		long			get_dll_canRead(CMSG *t_canmsg, long *len);
 		T_DeviceList	*GetHardwareList(void);
 		int				nConnectedHardware();
 		int				nInitHwNetwork(PSCONTROLLER_DETAILS InitData, UINT unDefaultChannelCnt);
 		int				nCreateMultipleHardwareNetwork(PSCONTROLLER_DETAILS InitData, UINT unDefaultChannelCnt);
 		void			can_reader(void);
+		void			can_reader2(void);
 		void			ProcessCANMsg(CMSG canmsg, unsigned int nChannelIndex);
 
 		CCanBox2();
@@ -169,6 +169,7 @@ class CCanBox2 : public CBaseDIL_CAN_Controller
 		int				SwitchCan = 0;
 		int				NumChannel = 0;
 		HANDLE			hThread;
+		HANDLE			hThread2;
 		HANDLE			d_eventStop;
 		CStdioFile		rapport;
 		int				bLogFile;
@@ -188,6 +189,7 @@ class CCanBox2 : public CBaseDIL_CAN_Controller
 		int				canInstruction(int *arrData);	//CanBox	public
 		//Variables pour SIECA
 		HANDLE			hCan;			//CanBox	public
+		HANDLE			hCan2;			//CanBox	public
 		CAN_IF_STATUS	stCanStatus;	//CanBox	public
 		CTRDATA			stCounter;		//CanBox	public
 		CTRDATA2		stCounter2;		//CanBox	public
