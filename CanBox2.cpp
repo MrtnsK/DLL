@@ -72,8 +72,8 @@ static CPARAM_THREADPROC sg_sParmRThread;
 static UINT				sg_nNoOfChannels = 0;
 static STCANDATA		sg_asCANMsg;
 int						sg_arrReadHandles[CHANNEL_ALLOWED];
-static INT sg_anSelectedItems[CHANNEL_ALLOWED];
-static INTERFACE_HW sg_HardwareIntr[defNO_OF_CHANNELS];
+static INT				sg_anSelectedItems[CHANNEL_ALLOWED];
+static INTERFACE_HW		sg_HardwareIntr[defNO_OF_CHANNELS];
 
 //CAN_SetConfigData variables
 static UCHAR sg_ucNoOfHardware = 0;
@@ -272,101 +272,29 @@ int		CCanBox2::nConnectedHardware()
 	return nb;
 }
 
-int CCanBox2::nCreateMultipleHardwareNetwork(PSCONTROLLER_DETAILS InitData, UINT unDefaultChannelCnt)
-{
-	//int nHardwareCountPrev = sg_ucNoOfHardware;
-	//int nHwCount = sg_ucNoOfHardware;
-	//DWORD dwFirmWare[2];
-	//char chBuffer[512] = "";
-
-	//sg_HardwareList.m_nChannelCount = nHwCount;
-	// Get Hardware Network Map
-	//for (int nCount = 0; nCount < nHwCount; nCount++)
-	//{
-	//	sg_HardwareIntr[nCount].m_dwIdInterface = nCount;
-	//	sg_HardwareIntr[nCount].m_acDescription = chBuffer;
-	//	sg_HardwareIntr[nCount].m_dwVendor = 11928;
-	//	//Get Firmware info
-	//	//sprintf_s(chBuffer, sizeof(chBuffer), "0x%08lx 0x%08lx", dwFirmWare[0], dwFirmWare[1]);
-	//	sg_HardwareIntr[nCount].m_acDeviceName = chBuffer;
-	////	sprintf(chBuffer, ("AGCO - %s, Serial Number- %ld, Firmware- %s"),
-	////		sg_HardwareIntr[nCount].m_acDescription.c_str(),
-	////		sg_HardwareIntr[nCount].m_dwVendor,
-	////		sg_HardwareIntr[nCount].m_acDeviceName.c_str());
-	//	sg_HardwareList.m_omHardwareChannel[nCount] = chBuffer;
-	//	sg_HardwareList.m_ouChannelDetails[nCount].m_omVendorId = sg_HardwareIntr[nCount].m_dwVendor;
-	//	sg_HardwareList.m_ouChannelDetails[nCount].m_omChannelName = sg_HardwareIntr[nCount].m_acDescription.c_str();
-	//	sg_HardwareList.m_ouChannelDetails[nCount].m_omFirmware = sg_HardwareIntr[nCount].m_acDeviceName;
-	//	//sprintf(sg_HardwareIntr[nCount].m_acDeviceName,"0x%08lx 0x%08lx", dwFirmWare[0], dwFirmWare[1]);
-	//}
-
-	/* If the default channel count parameter is set, prevent displaying the hardware selection dialog */
-	//if (unDefaultChannelCnt && nHwCount >= unDefaultChannelCnt)
-	//{
-	//	for (UINT i = 0; i < unDefaultChannelCnt; i++)
-	//	{
-	//		//sg_anSelectedItems[i] = i;
-	//		sg_anSelectedItems[i] = GetSelectedChannelIndex(i);
-	//	}
-	//	nHwCount = unDefaultChannelCnt;
-	//}
-	//else if (ListHardwareInterfaces(sg_hOwnerWnd, sg_HardwareIntr, sg_anSelectedItems, nHwCount, InitData) != 0)
-	//{
-	//	sg_ucNoOfHardware = nHardwareCountPrev;
-	//	return HW_INTERFACE_NO_SEL;
-	//}
-	//sg_ucNoOfHardware = (UCHAR)nHwCount;
-	//sg_nNoOfChannels = (UINT)nHwCount;
-
-	////Reorder hardware interface as per the user selection
-	//for (int nCount = 0; nCount < sg_ucNoOfHardware; nCount++)
-	//{
-	//	if (sg_anSelectedItems[nCount] != -1)
-	//	{
-	//		sg_aodChannels[nCount].m_nChannel = sg_HardwareIntr[sg_anSelectedItems[nCount]].m_dwIdInterface;
-	//		sprintf(sg_aodChannels[nCount].m_strName, _("Kvaser - %s, Serial Number- %ld, Firmware- %s"),
-	//			sg_HardwareIntr[sg_anSelectedItems[nCount]].m_acDescription.c_str(),
-	//			sg_HardwareIntr[sg_anSelectedItems[nCount]].m_dwVendor,
-	//			sg_HardwareIntr[sg_anSelectedItems[nCount]].m_acDeviceName.c_str());
-	//	}
-	//}
-
-	return S_OK;
-}
-
-
-int CCanBox2::nInitHwNetwork(PSCONTROLLER_DETAILS InitData, UINT unDefaultChannelCnt)
-{
-	int nChannelCount = 0;
-	int nResult = NO_HW_INTERFACE;
-	char acNo_Of_Hw[256] = { 0 };
-
-	/* Select Hardware */
-	nChannelCount = nConnectedHardware();
-	if (nChannelCount == -1)
-	{
-		nResult = -1;
-		return nResult;
-	}
-	sg_ucNoOfHardware = (UCHAR)nChannelCount;
-	sprintf(acNo_Of_Hw, ("Number of AGCO hardwares Available: %d"), nChannelCount);
-	if (nChannelCount == 0)
-		nChannelCount = -1;
-	else
-		nResult = nCreateMultipleHardwareNetwork(InitData, unDefaultChannelCnt);
-	return nResult;
-}
-
 HRESULT CCanBox2::CAN_ListHwInterfaces(INTERFACE_HW_LIST& sSelHwInterface, INT& nCount, PSCONTROLLER_DETAILS InitData)
 {
-	//USES_CONVERSION;
-	HRESULT hResult = S_FALSE;
+	USES_CONVERSION;
+	HRESULT hResult = S_OK;
 
-	//if ((hResult = nInitHwNetwork(InitData, nCount)) == 0)
-	//{
-		hResult = S_OK;
-		sg_bCurrState = STATE_HW_INTERFACE_LISTED;
-	//}
+	for (UINT i = 0; i < 2; i++)
+	{	
+		sSelHwInterface[i].m_dwIdInterface = (ULONG)i;
+		sSelHwInterface[i].m_dwVendor = (ULONG)11928;
+		sSelHwInterface[i].m_bytNetworkID = i + 1;
+		std::ostringstream name;
+		name << "AGCO AC0011928 Can" << i + 1;
+		sSelHwInterface[i].m_acDeviceName = name.str();
+		//sSelHwInterface[i].m_acAdditionalInfo = name.str();
+		std::ostringstream desc;
+		desc << "CANUSB " << 20 + i;
+	//	sSelHwInterface[i].m_acDescription = desc.str();
+	//	std::ostringstream nameinterface;
+		//nameinterface << "AGCO - CAN" << i + 1;
+		//sSelHwInterface[i].m_acNameInterface = nameinterface.str();
+	}
+	nCount = 2;
+	sg_bCurrState = STATE_HW_INTERFACE_LISTED;
 	return hResult;
 }
 
@@ -399,16 +327,16 @@ HRESULT CCanBox2::CAN_SetConfigData(PSCONTROLLER_DETAILS InitData, int Length)
 	USES_CONVERSION;
 
 
-	/* Fill the hardware description details */
-	for (UINT nCount = 0; nCount < sg_ucNoOfHardware; nCount++)
-	{
-		((PSCONTROLLER_DETAILS)InitData)[nCount].m_omHardwareDesc = sg_ControllerDetails[nCount].m_omHardwareDesc;
-	}
+	///* Fill the hardware description details */
+	//for (UINT nCount = 0; nCount < 1; nCount++)
+	//{ // crash ncount == 1
+	//	((PSCONTROLLER_DETAILS)InitData)[nCount].m_omHardwareDesc = sg_ControllerDetails[nCount].m_omHardwareDesc;
+	//}
 
-	for (int i = 0; i < Length; i++)
-	{
-		sg_ControllerDetails[i] = InitData[i];
-	}
+	//for (int i = 0; i < Length; i++)
+	//{
+	//	sg_ControllerDetails[i] = InitData[i];
+	//}
 
 	return S_OK;
 }
@@ -555,9 +483,45 @@ HRESULT CCanBox2::CAN_GetTxMsgBuffer(BYTE*& pouFlxTxMsgBuffer)
 }
 
 
-HRESULT CCanBox2::CAN_SendMsg(DWORD dwClientID, const STCAN_MSG& sCanTxMsg)
+void	CCanBox2::ProcessCANtx(STCAN_MSG canmsg)
 {
-	SendMessage(sCanTxMsg.m_ucData);
+	STCANDATA	CANMsg;
+
+	CANMsg.m_uDataInfo.m_sCANMsg = canmsg;
+	CANMsg.m_ucDataType = TX_FLAG;
+	CANMsg.m_lTickCount.QuadPart = sg_asCANMsg.m_lTickCount.QuadPart;
+	vWriteIntoClientsBuffer(CANMsg, 0);
+}
+
+HRESULT CCanBox2::CAN_SendMsg(DWORD dwClientID, const STCAN_MSG& cmsg)
+{
+	VALIDATE_VALUE_RETURN_VAL(sg_bCurrState, STATE_CONNECTED, ERR_IMPROPER_STATE);
+	CMSG	canmsg;
+	long	len = 1;
+	
+	canmsg.ul_tstamp = sg_asCANMsg.m_lTickCount.QuadPart;
+	canmsg.by_len = cmsg.m_ucDataLen;
+	canmsg.l_id = cmsg.m_unMsgID;
+	canmsg.by_extended = cmsg.m_ucEXTENDED;
+	canmsg.by_remote = cmsg.m_ucRTR;
+	canmsg.aby_data[0] = cmsg.m_ucData[0];
+	canmsg.aby_data[1] = cmsg.m_ucData[1];
+	canmsg.aby_data[2] = cmsg.m_ucData[2];
+	canmsg.aby_data[3] = cmsg.m_ucData[3];
+	canmsg.aby_data[4] = cmsg.m_ucData[4];
+	canmsg.aby_data[5] = cmsg.m_ucData[5];
+	canmsg.aby_data[6] = cmsg.m_ucData[6];
+	canmsg.aby_data[7] = cmsg.m_ucData[7];
+
+	if (cmsg.m_ucChannel && cmsg.m_ucChannel <= 2)
+	{
+		if (cmsg.m_ucChannel == 1)
+			errSIECA = dll_canSend(hCan, &canmsg, &len);
+		else if (cmsg.m_ucChannel == 2)
+			errSIECA = dll_canSend(hCan2, &canmsg, &len);
+		if (errSIECA == 0)
+			ProcessCANtx(cmsg);
+	}
 	return S_OK;
 }
 
@@ -2038,7 +2002,7 @@ void CCanBox2::TraiteCanBox(int NumeroChannel)
 
 }
 
-int CCanBox2::AjouterMessageEmission(unsigned long Ident, int Ext, unsigned char Remote, unsigned char *data, unsigned char Dlc)
+int CCanBox2::AjouterMessageEmission(HANDLE channel, unsigned long Ident, int Ext, unsigned char Remote, unsigned char *data, unsigned char Dlc)
 {
 	if(HARDWARE == 0)
 	{
@@ -2086,9 +2050,7 @@ int CCanBox2::AjouterMessageEmission(unsigned long Ident, int Ext, unsigned char
         {
             msgToSend.aby_data[i] = DataToSendTX[2+i];
         }
-
 		errSIECA = dll_canSend(hCan, &msgToSend, &l_len);
-
 		if (errSIECA == NTCAN_SUCCESS)
 			return OK;
 		else

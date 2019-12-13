@@ -8,6 +8,8 @@
 #pragma once
 #endif // _MSC_VER > 1000
 
+#include <sstream>
+#include <string>
 #include "SIECA132.h"
 #include "CanUsbTypes.h"
 #include "GestionMessages.h"
@@ -146,7 +148,7 @@ class CCanBox2 : public CBaseDIL_CAN_Controller
 		int				Initialisation(int NumVoie,int Echo,unsigned long vitesse,unsigned char echantillonnage, int HardwareChoosed);
 		int				ActiveCanBox(void);
 		int				DesactiveCanBox(void);
-		int				AjouterMessageEmission(unsigned long Ident,int Ext,unsigned char Remote,unsigned char *data,unsigned char Dlc);
+		int				AjouterMessageEmission(HANDLE channel, unsigned long Ident,int Ext,unsigned char Remote,unsigned char *data,unsigned char Dlc);
 		int				AjouterMessageReception(unsigned long Ident, unsigned long etendu,unsigned long mask,void (* FonctionTraiteMessage)(messageStruct *message));
 		int				EffacerMessageReception(unsigned long Ident,int Ext,void (* FonctionTraiteMessage)(messageStruct *message));
 		int				Lire_Donnee(int numero, int *error);
@@ -156,11 +158,10 @@ class CCanBox2 : public CBaseDIL_CAN_Controller
 		void			SendMessage(CString msg);
 		T_DeviceList	*GetHardwareList(void);
 		int				nConnectedHardware();
-		int				nInitHwNetwork(PSCONTROLLER_DETAILS InitData, UINT unDefaultChannelCnt);
-		int				nCreateMultipleHardwareNetwork(PSCONTROLLER_DETAILS InitData, UINT unDefaultChannelCnt);
 		void			can_reader(void);
 		void			can_reader2(void);
 		void			ProcessCANMsg(CMSG canmsg, unsigned int nChannelIndex);
+		void			ProcessCANtx(STCAN_MSG canmsg);
 
 		CCanBox2();
 		virtual			~CCanBox2();
