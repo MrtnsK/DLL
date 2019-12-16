@@ -22,6 +22,7 @@
 #include "C:\Users\kmartin\Desktop\busmaster\Sources\Kernel\BusmasterDriverInterface\Include\BaseDIL_CAN_Controller.h"
 #include "C:\Users\kmartin\Desktop\busmaster\Sources\BUSMASTER\Utility\Utility_Thread.h"
 #include "C:\Users\kmartin\Desktop\busmaster\Sources\BUSMASTER\Utility\Utility_Thread.cpp"
+#include "C:\Users\kmartin\Desktop\busmaster\Sources\BUSMASTER\Utility\MultiLanguageSupport.h"
 
 #include "windows.h"
 
@@ -136,9 +137,7 @@ class CCanBox2 : public CBaseDIL_CAN_Controller
 		HRESULT			CAN_LoadDriverLibrary(void);
 		HRESULT			CAN_UnloadDriverLibrary(void);
 		HRESULT			CAN_SetHardwareChannel(PSCONTROLLER_DETAILS, DWORD dwDriverId, bool bIsHardwareListed, unsigned int unChannelCount);
-		HRESULT			GetHWinfo(HANDLE handle, unsigned long *pulSNHigh, unsigned long *pulSNLow, int *res);
-		HRESULT			myCanOpen(char *name, HANDLE *handle);
-		HRESULT			myCanClose(HANDLE handle);
+		HRESULT			GetHWinfo(unsigned long *pulSNHigh, unsigned long *pulSNLow, int *res);
 
 		//  IOCANBOX FUNCTION
 		int				ClearBuffer(void);
@@ -157,11 +156,12 @@ class CCanBox2 : public CBaseDIL_CAN_Controller
 		void			TraiteCanBox(int NumeroChannel);
 		void			SendMessage(CString msg);
 		T_DeviceList	*GetHardwareList(void);
-		int				nConnectedHardware();
 		void			can_reader(void);
 		void			can_reader2(void);
 		void			ProcessCANMsg(CMSG canmsg, unsigned int nChannelIndex);
 		void			ProcessCANtx(STCAN_MSG canmsg);
+		char			*convertSN(unsigned long sn);
+		char			*decriptSN(unsigned long sn1, unsigned long sn2);
 
 		CCanBox2();
 		virtual			~CCanBox2();
@@ -172,6 +172,7 @@ class CCanBox2 : public CBaseDIL_CAN_Controller
 		HANDLE			hThread;
 		HANDLE			hThread2;
 		HANDLE			d_eventStop;
+		HANDLE			d_eventStop2;
 		CStdioFile		rapport;
 		int				bLogFile;
 		unsigned long	ulNum;
@@ -179,6 +180,7 @@ class CCanBox2 : public CBaseDIL_CAN_Controller
 		bool			FlagFinThread;
 		bool			bStopThread;
 		int				hardware;
+		char			*g_serialnumber;
 		long			oldtstamp = 0;
 
 

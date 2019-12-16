@@ -197,7 +197,8 @@ CCanBox2::~CCanBox2()
 	*/
 	while(FlagFinThread != true)
 	{
-		SetEvent( d_eventStop);
+		SetEvent(d_eventStop);
+		SetEvent(d_eventStop2);
 	};
 
 	/*
@@ -206,11 +207,14 @@ CCanBox2::~CCanBox2()
 	*/
 	if(d_eventStop!=NULL)
 	{
-		CloseHandle( d_eventStop );
+		CloseHandle(d_eventStop);
+		CloseHandle(d_eventStop2);
 		d_eventStop = NULL;
+		d_eventStop2 = NULL;
 	}
 
 	hThread = NULL;
+	hThread2 = NULL;
 
 	/*if(HARDWARE == 0)*/	FreeLibrary(hSIECADLL);
 	/*if(HARDWARE == 1)*/	FreeLibrary(hVXLAPIDLL);
@@ -263,36 +267,25 @@ HRESULT CCanBox2::CAN_GetTimeModeMapping(SYSTEMTIME& CurrSysTime, UINT64& TimeSt
 	return S_OK;
 }
 
-int		CCanBox2::nConnectedHardware()
-{
-	long			nb;
-
-	if (this->dll_canGetNumberOfConnectedDevices(&nb) != NTCAN_SUCCESS)
-		return NULL;
-	return nb;
-}
-
 HRESULT CCanBox2::CAN_ListHwInterfaces(INTERFACE_HW_LIST& sSelHwInterface, INT& nCount, PSCONTROLLER_DETAILS InitData)
 {
 	USES_CONVERSION;
 	HRESULT hResult = S_OK;
+	unsigned long	pulSNHigh = 0;
+	unsigned long	pulSNLow = 0;
+	int			tmpid;
 
-	for (UINT i = 0; i < 2; i++)
-	{	
-		sSelHwInterface[i].m_dwIdInterface = (ULONG)i;
-		sSelHwInterface[i].m_dwVendor = (ULONG)11928;
-		sSelHwInterface[i].m_bytNetworkID = i + 1;
-		std::ostringstream name;
-		name << "AGCO AC0011928 Can" << i + 1;
-		sSelHwInterface[i].m_acDeviceName = name.str();
-		//sSelHwInterface[i].m_acAdditionalInfo = name.str();
-		std::ostringstream desc;
-		desc << "CANUSB " << 20 + i;
-	//	sSelHwInterface[i].m_acDescription = desc.str();
-	//	std::ostringstream nameinterface;
-		//nameinterface << "AGCO - CAN" << i + 1;
-		//sSelHwInterface[i].m_acNameInterface = nameinterface.str();
-	}
+	GetHWinfo(&pulSNHigh, &pulSNLow, &tmpid);
+	g_serialnumber = decriptSN(pulSNHigh, pulSNLow);
+	//for (UINT i = 0; i < 2; i++)
+	//{	
+	//	sSelHwInterface[i].m_dwIdInterface = (ULONG)i;
+	//	sSelHwInterface[i].m_dwVendor = (ULONG)11928;
+	//	sSelHwInterface[i].m_bytNetworkID = i + 1;
+	//	std::ostringstream name;
+	//	name << "AGCO " << g_serialnumber << " Can" << i + 1;
+	//	sSelHwInterface[i].m_acDeviceName = name.str();
+	//}
 	nCount = 2;
 	sg_bCurrState = STATE_HW_INTERFACE_LISTED;
 	return hResult;
@@ -304,12 +297,7 @@ HRESULT CCanBox2::CAN_SelectHwInterface(const INTERFACE_HW_LIST& sSelHwInterface
 
 	VALIDATE_VALUE_RETURN_VAL(sg_bCurrState, STATE_HW_INTERFACE_LISTED, ERR_IMPROPER_STATE);
 
-	/* Check for the success */
 	sg_bCurrState = STATE_HW_INTERFACE_SELECTED;
-	for (UINT nCount = 0; nCount < sg_ucNoOfHardware; nCount++)
-	{
-		sg_ControllerDetails[nCount].m_omHardwareDesc = sSelHwInterface[nCount].m_acNameInterface;
-	}
 	return S_OK;
 }
 
@@ -327,7 +315,7 @@ HRESULT CCanBox2::CAN_SetConfigData(PSCONTROLLER_DETAILS InitData, int Length)
 	USES_CONVERSION;
 
 
-	///* Fill the hardware description details */
+	//* Fill the hardware description details */
 	//for (UINT nCount = 0; nCount < 1; nCount++)
 	//{ // crash ncount == 1
 	//	((PSCONTROLLER_DETAILS)InitData)[nCount].m_omHardwareDesc = sg_ControllerDetails[nCount].m_omHardwareDesc;
@@ -412,7 +400,7 @@ DWORD WINAPI can_read2(LPVOID lpParam)
 {
 	CCanBox2 *CanUsb = (CCanBox2*)lpParam;
 
-	while (WaitForSingleObject(CanUsb->d_eventStop, 0) == WAIT_TIMEOUT)
+	while (WaitForSingleObject(CanUsb->d_eventStop2, 0) == WAIT_TIMEOUT)
 	{
 		CanUsb->can_reader2();
 	}
@@ -430,6 +418,7 @@ HRESULT CCanBox2::CAN_StartHardware(void)
 	FlagFinThread = false;
 	bStopThread = false;
 	d_eventStop = CreateEvent(NULL, FALSE, FALSE, "event_StopThread");
+	d_eventStop2 = CreateEvent(NULL, FALSE, FALSE, "event_StopThread2");
 	hThread = CreateThread(NULL, 0, can_read, this, 0, &dwThreadId);
 	SetThreadPriority(hThread, THREAD_PRIORITY_NORMAL);
 	hThread2 = CreateThread(NULL, 0, can_read2, this, 0, &dwThreadId2);
@@ -445,6 +434,8 @@ HRESULT CCanBox2::CAN_StopHardware(void)
 	ClearBuffer();
 	if (d_eventStop)
 		SetEvent(d_eventStop);
+	if (d_eventStop2)
+		SetEvent(d_eventStop2);
 	if (hThread && hThread2)
 		if (dll_canIsHandleValid(hCan) == NTCAN_SUCCESS && dll_canIsHandleValid(hCan2) == NTCAN_SUCCESS)
 		{
@@ -721,29 +712,6 @@ HRESULT CCanBox2::CAN_UnloadDriverLibrary(void)
 
 HRESULT CCanBox2::CAN_SetHardwareChannel(PSCONTROLLER_DETAILS, DWORD dwDriverId, bool bIsHardwareListed, unsigned int unChannelCount)
 {
-	//sg_anSelectedItems[0] = 1;
-	//sg_anSelectedItems[1] = 2;
-	//sg_anSelectedItems[2] = -1;
-	//sg_SelectedChannels.m_nChannelCount = 2;
-	//sg_SelectedChannels.m_omHardwareChannel[0] = "";
-	//sg_SelectedChannels.m_omHardwareChannel[1] = "";
-
-	//sg_HardwareIntr[0].m_dwIdInterface = (ULONG)1;
-	//sg_HardwareIntr[0].m_dwVendor = (ULONG)11928;
-	//sg_HardwareIntr[0].m_bytNetworkID = 1;
-	//sg_HardwareIntr[0].m_acNameInterface = "AGCO";
-	//sg_HardwareIntr[0].m_acDescription = "CANUSB";
-	//sg_HardwareIntr[0].m_acDeviceName = "AGCO AC0011928 Can1";
-	//sg_HardwareIntr[0].m_acAdditionalInfo = "1";
-
-	//sg_HardwareIntr[1].m_dwIdInterface = (ULONG)2;
-	//sg_HardwareIntr[1].m_dwVendor = (ULONG)11928;
-	//sg_HardwareIntr[1].m_bytNetworkID = 2;
-	//sg_HardwareIntr[1].m_acNameInterface = "AGCO";
-	//sg_HardwareIntr[1].m_acDescription = "CANUSB";
-	//sg_HardwareIntr[1].m_acDeviceName = "AGCO AC0011928 Can2";
-	//sg_HardwareIntr[1].m_acAdditionalInfo = "2";
-
 	return S_OK;
 }
 
@@ -752,48 +720,10 @@ void CCanBox2::SendMessage(CString msg)
 	AfxMessageBox(msg);
 }
 
-
-HANDLE htEventR;
-HANDLE htEventE;
-
-HRESULT CCanBox2::myCanOpen(char *name, HANDLE *handle)
+HRESULT	CCanBox2::GetHWinfo(unsigned long *pulSNHigh, unsigned long *pulSNLow, int *res)
 {
-	long	l_netnumber = 21;
-	long	l_txtimeout = 1000;
-	long	l_rxtimeout = 1000;
-	long	l_retval;
-
-	if (HARDWARE == 0)
-	{
-		htEventR = CreateEvent(NULL, TRUE, FALSE, "R2");
-		htEventE = CreateEvent(NULL, TRUE, FALSE, "E2");
-		l_retval = this->dll_canOpen(l_netnumber, 0, 0, l_txtimeout, l_rxtimeout, name, "R1", "E1", handle);
-		if (l_retval != NTCAN_SUCCESS) {
-			printf("error occurred during canOpen!\n");
-			return S_FALSE;
-		}
-		return S_OK;
-	}
-	return S_FALSE;
-}
-
-HRESULT	CCanBox2::myCanClose(HANDLE handle)
-{
-	long	l_retval;
-
-	l_retval = this->dll_canClose(handle);
-	if (l_retval != NTCAN_SUCCESS) {
-		printf("error occurred during canClose!\n");
-		return S_FALSE;
-	}
-	return S_OK;
-}
-
-
-HRESULT	CCanBox2::GetHWinfo(HANDLE handle, unsigned long *pulSNHigh, unsigned long *pulSNLow, int *res)
-{
-	(*res) = this->dll_canGetHWSerialNumber(handle, pulSNHigh, pulSNLow);
-	return S_OK;
+	(*res) = this->dll_canGetHWSerialNumber(hCan, pulSNHigh, pulSNLow);
+	return S_OK; 
 }
 
 T_DeviceList	*CCanBox2::GetHardwareList()
@@ -3204,7 +3134,53 @@ static BOOL bRemoveClient(DWORD dwClientId)
 	return bResult;
 }
 
+#include <stdlib.h>
 
+char *CCanBox2::convertSN(unsigned long sn)
+{
+	char	str[20];
+	char	*serial;
+	int		i;
+
+	i = 0;
+	if (!(serial = (char*)malloc(sizeof(char) * 5)))
+		return (NULL);
+	itoa(sn, str, 16);
+	while (i < 4)
+		serial[i] = str[i++];
+	serial[i] = '\0';
+	return(serial);
+}
+
+char	*CCanBox2::decriptSN(unsigned long sn1, unsigned long sn2)
+{
+	int		tmp;
+	char	*tmp1;
+	char	*tmp2;
+	char	*serialnumber;
+	char	*trash;
+	int		i;
+	int		len;
+
+	i = 0;
+	tmp1 = convertSN(sn1);
+	tmp2 = convertSN(sn2);
+	tmp = strtol(tmp2, &trash, 16);
+	free(tmp2);
+	if (!(tmp2 = (char*)malloc(sizeof(char) * 20)))
+		return (NULL);
+	itoa(tmp, tmp2, 10);
+	len = strlen(tmp1) + strlen(tmp2) + 1;
+	if (!(serialnumber = (char*)malloc(sizeof(char) * len)))
+		return (NULL);
+	while (i < len)
+		serialnumber[i++] = '\0';
+	strcat(serialnumber, tmp1);
+	strcat(serialnumber, tmp2);
+	free(tmp1);
+	free(tmp2);
+	return (serialnumber);
+}
 
 
 //Pour le debuggage

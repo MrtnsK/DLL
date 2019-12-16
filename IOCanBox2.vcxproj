@@ -15,6 +15,7 @@
     <RootNamespace>IOCanBox2</RootNamespace>
     <Keyword>MFCProj</Keyword>
     <WindowsTargetPlatformVersion>10.0.18362.0</WindowsTargetPlatformVersion>
+    <ProjectName>CAN_AGCO</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
@@ -118,7 +119,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>stdafx.h</PrecompiledHeaderFile>
-      <PrecompiledHeaderOutputFile>.\Release/IOCanBox2.pch</PrecompiledHeaderOutputFile>
+      <PrecompiledHeaderOutputFile>.\Release/CAN_AGCO.pch</PrecompiledHeaderOutputFile>
       <AssemblerListingLocation>.\Release/</AssemblerListingLocation>
       <ObjectFileName>.\Release/</ObjectFileName>
       <ProgramDataBaseFileName>.\Release/</ProgramDataBaseFileName>
@@ -132,17 +133,17 @@
     </ResourceCompile>
     <Link>
       <AdditionalDependencies>vxlapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <OutputFile>..\\..\\..\\..\\..\\output\\Release/MF_IOCanBox.dll</OutputFile>
+      <OutputFile>..\\..\\..\\..\\..\\output\\Release/CAN_AGCO.dll</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <ModuleDefinitionFile>.\IOCanBox2.def</ModuleDefinitionFile>
-      <ProgramDatabaseFile>.\Release/MF_IOCanBox.pdb</ProgramDatabaseFile>
+      <ModuleDefinitionFile>.\CAN_AGCO.def</ModuleDefinitionFile>
+      <ProgramDatabaseFile>.\Release/CAN_AGCO.pdb</ProgramDatabaseFile>
       <SubSystem>Windows</SubSystem>
-      <ImportLibrary>.\Release/MF_IOCanBox.lib</ImportLibrary>
+      <ImportLibrary>.\Release/CAN_AGCO.lib</ImportLibrary>
       <TargetMachine>MachineX86</TargetMachine>
     </Link>
     <Bscmake>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <OutputFile>.\Release/IOCanBox2.bsc</OutputFile>
+      <OutputFile>.\Release/CAN_AGCO.bsc</OutputFile>
     </Bscmake>
   </ItemDefinitionGroup>
   <ItemGroup>
