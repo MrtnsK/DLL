@@ -460,11 +460,7 @@ HRESULT CCanBox2::CAN_StopHardware(void)
 
 HRESULT CCanBox2::CAN_GetCurrStatus(STATUSMSG& StatusData)
 {
-	CAN_IF_STATUS data;
-
-	data = GetBusInfos2(0);
-	StatusData.dwStatusInfoFlags = (unsigned long)data.w_errorflag;
-	StatusData.wControllerStatus = (unsigned short)data.ul_board_status;
+	StatusData.wControllerStatus = NORMAL_ACTIVE;
 	return S_OK;
 }
 
@@ -540,8 +536,49 @@ HRESULT CCanBox2::CAN_GetLastErrorString(std::string& acErrorStr)
 
 HRESULT CCanBox2::CAN_GetControllerParams(LONG& lParam, UINT nChannel, ECONTR_PARAM eContrParam)
 {
-	//todo
-	return S_OK;
+	HRESULT hResult = S_OK;
+	if ((sg_bCurrState == STATE_HW_INTERFACE_SELECTED) || (sg_bCurrState == STATE_CONNECTED))
+	{
+		switch (eContrParam)
+		{
+			case NUMBER_HW:
+			{
+				lParam = 2;
+			}
+			break;
+			case NUMBER_CONNECTED_HW:
+			{
+				lParam = 2;
+			}
+			break;
+			case DRIVER_STATUS:
+			{
+				lParam = true;
+			}
+			break;
+			case HW_MODE:
+			{
+				lParam = true;
+			}
+			break;
+			case CON_TEST:
+			{
+				lParam = true;
+			}
+			break;
+			default:
+			{
+				hResult = S_FALSE;
+			}
+			break;
+		}
+	}
+	else
+	{
+		hResult = ERR_IMPROPER_STATE;
+	}
+
+	return hResult;
 }
 
 HRESULT CCanBox2::CAN_SetControllerParams(int nValue, ECONTR_PARAM eContrparam)
@@ -552,8 +589,40 @@ HRESULT CCanBox2::CAN_SetControllerParams(int nValue, ECONTR_PARAM eContrparam)
 
 HRESULT	CCanBox2::CAN_GetErrorCount(SERROR_CNT& sErrorCnt, UINT nChannel, ECONTR_PARAM eContrParam)
 {
+	HRESULT hResult = S_OK;
+	unsigned char old = 0;
+	CTRDATA stathw;
 
-	return S_OK;
+	if ((sg_bCurrState == STATE_CONNECTED) || (sg_bCurrState == STATE_HW_INTERFACE_SELECTED))
+	{
+		dll_canGetCounter(&stathw);
+		if (nChannel <= 2)
+		{
+			if (eContrParam == ERR_CNT)
+			{
+				//sErrorCnt.m_ucTxErrCount = sg_aodChannels[nChannel].m_ucTxErrorCounter;
+				sErrorCnt.m_ucRxErrCount = stathw.ul_errframectr1 + stathw.ul_errframectr2;
+			}
+			else if (eContrParam == PEAK_ERR_CNT)
+			{
+				//sErrorCnt.m_ucTxErrCount = sg_aodChannels[nChannel].m_ucPeakTxErrorCounter;
+				if (stathw.ul_errframectr1 + stathw.ul_errframectr2 > old)
+				{
+					sErrorCnt.m_ucRxErrCount = stathw.ul_errframectr1 + stathw.ul_errframectr2;
+					old = sErrorCnt.m_ucRxErrCount;
+				}
+			}
+		}
+		else
+		{
+			hResult = ERR_INVALID_CHANNEL;
+		}
+	}
+	else
+	{
+		hResult = ERR_IMPROPER_STATE;
+	}
+	return hResult;
 }
 
 HRESULT CCanBox2::CAN_SetAppParams(HWND hWndOwner)

@@ -15,14 +15,14 @@
 #include "GestionMessages.h"
 #include "vxlapi.h"
 //raw path during developpment, need to be relative in the future release
-#include "C:\Users\kmartin\Desktop\busmaster\Sources\Kernel\BusmasterDriverInterface\Include\CANDriverDefines.h"
-#include "C:\Users\kmartin\Desktop\busmaster\Sources\Kernel\BusmasterDriverInterface\Include\DILPluginHelperDefs.h"
-#include "C:\Users\kmartin\Desktop\busmaster\Sources\Kernel\BusmasterDriverInterface\Include\DeviceListInfo.h"
-#include "C:\Users\kmartin\Desktop\busmaster\Sources\Kernel\BusmasterDriverInterface\Include\Error.h"
-#include "C:\Users\kmartin\Desktop\busmaster\Sources\Kernel\BusmasterDriverInterface\Include\BaseDIL_CAN_Controller.h"
-#include "C:\Users\kmartin\Desktop\busmaster\Sources\BUSMASTER\Utility\Utility_Thread.h"
-#include "C:\Users\kmartin\Desktop\busmaster\Sources\BUSMASTER\Utility\Utility_Thread.cpp"
-#include "C:\Users\kmartin\Desktop\busmaster\Sources\BUSMASTER\Utility\MultiLanguageSupport.h"
+#include "..\..\Kernel\BusmasterDriverInterface\Include\CANDriverDefines.h"
+#include "..\..\Kernel\BusmasterDriverInterface\Include\DILPluginHelperDefs.h"
+#include "..\..\Kernel\BusmasterDriverInterface\Include\DeviceListInfo.h"
+#include "..\..\Kernel\BusmasterDriverInterface\Include\Error.h"
+#include "..\..\Kernel\BusmasterDriverInterface\Include\BaseDIL_CAN_Controller.h"
+#include "..\Utility\Utility_Thread.h"
+#include "..\Utility\Utility_Thread.cpp"
+#include "..\Utility\MultiLanguageSupport.h"
 
 #include "windows.h"
 

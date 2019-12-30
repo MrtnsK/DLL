@@ -133,7 +133,7 @@
     </ResourceCompile>
     <Link>
       <AdditionalDependencies>vxlapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <OutputFile>..\\..\\..\\..\\..\\output\\Release/CAN_AGCO.dll</OutputFile>
+      <OutputFile>../BIN/Release/CAN_AGCO.dll</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <ModuleDefinitionFile>.\CAN_AGCO.def</ModuleDefinitionFile>
       <ProgramDatabaseFile>.\Release/CAN_AGCO.pdb</ProgramDatabaseFile>

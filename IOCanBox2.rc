@@ -79,12 +79,12 @@ BEGIN
     BEGIN
         BLOCK "040c04b0"
         BEGIN
-            VALUE "Comments", "Si 2 cartes CAN AGCO et vector sont branchées la Vector est prise par défaut"
-            VALUE "FileDescription", "IOCanBox2 DLL"
+            VALUE "Comments", "CAN AGCO"
+            VALUE "FileDescription", "AGCO DLL"
             VALUE "FileVersion", "1.4.0.3"
             VALUE "InternalName", "IOCanBox2"
             VALUE "LegalCopyright", "Copyright (C) 2008"
-            VALUE "OriginalFilename", "IOCanBox2.DLL"
+            VALUE "OriginalFilename", "CAN_AGCO.DLL"
             VALUE "ProductName", "Bibliothèque de liaison dynamique IOCanBox2"
             VALUE "ProductVersion", "1.4.0.3"
         END
